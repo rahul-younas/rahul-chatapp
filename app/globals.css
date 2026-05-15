@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #09090b;
+  --foreground: #fafafa;
 }
 
 @theme inline {
@@ -12,15 +12,93 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Clerk auth — force readable text (Tailwind classes on elements are unreliable) */
+.cl-rootBox,
+.cl-card,
+.cl-signIn-root,
+.cl-signUp-root {
+  color: #fafafa;
+}
+
+.cl-headerTitle,
+.cl-headerTitleRow h1,
+.cl-headerTitleRow p,
+.cl-formHeaderTitle {
+  color: #fafafa !important;
+}
+
+.cl-headerSubtitle,
+.cl-formHeaderSubtitle {
+  color: #a1a1aa !important;
+}
+
+.cl-dividerText,
+.cl-formFieldLabel,
+.cl-formFieldHintText {
+  color: #a1a1aa !important;
+}
+
+/* Sign-up / sign-in footer: "Already have an account? Sign in" */
+.clerk-auth-page .cl-footer,
+.clerk-auth-page .cl-footerAction {
+  background-color: transparent !important;
+}
+
+.clerk-auth-page .cl-footerActionText,
+.clerk-auth-page .cl-footerActionText span,
+.clerk-auth-page .cl-footerAction p,
+.cl-footerActionText {
+  color: #d4d4d8 !important;
+}
+
+.clerk-auth-page .cl-footerActionLink,
+.clerk-auth-page .cl-footerActionLink span,
+.clerk-auth-page .cl-footer a,
+.cl-footerActionLink {
+  color: #a5b4fc !important;
+  font-weight: 600 !important;
+}
+
+.clerk-auth-page .cl-footerActionLink:hover,
+.clerk-auth-page .cl-footer a:hover,
+.cl-footerActionLink:hover {
+  color: #c7d2fe !important;
+  text-decoration: underline !important;
+}
+
+.cl-formFieldInput {
+  color: #fafafa !important;
+  background-color: #27272a !important;
+  border-color: #3f3f46 !important;
+}
+
+.cl-formFieldInput::placeholder {
+  color: #71717a !important;
+}
+
+.cl-socialButtonsBlockButton {
+  color: #fafafa !important;
+  background-color: #27272a !important;
+  border-color: #3f3f46 !important;
+}
+
+.cl-footerActionLink,
+.cl-formResendCodeLink,
+.cl-identityPreviewEditButton {
+  color: #818cf8 !important;
 }

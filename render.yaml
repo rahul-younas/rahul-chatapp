@@ -1,0 +1,21 @@
+# Deploy Socket.IO server on Render (free tier)
+# Dashboard: New > Blueprint > connect repo, or New Web Service with this config
+
+services:
+  - type: web
+    name: voicehub-socket
+    runtime: node
+    plan: free
+    buildCommand: pnpm install
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: MONGODB_URI
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: SOCKET_PORT
+        value: "10000"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
