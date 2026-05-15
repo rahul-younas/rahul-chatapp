@@ -1,36 +1,145 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# VoiceHub — Realtime Voice Chat
 
-## Getting Started
+Discord-style temporary voice rooms with realtime text chat, built with Next.js (JavaScript), Clerk, MongoDB, Socket.IO, and LiveKit.
 
-First, run the development server:
+## Features
+
+- Clerk authentication (Google, email/password)
+- Temporary voice rooms with auto-delete when empty
+- Realtime text chat (in-memory only, never stored in MongoDB)
+- LiveKit voice with mute/unmute and moderator controls
+- Admin dashboard (ban users, manage roles, delete rooms)
+
+## Tech Stack
+
+- **Frontend:** Next.js App Router, JavaScript, Tailwind CSS, shadcn-style UI
+- **Auth:** Clerk
+- **Database:** MongoDB + Mongoose
+- **Realtime:** Socket.IO (standalone server)
+- **Voice:** LiveKit
+
+## Prerequisites
+
+- Node.js 20+
+- pnpm
+- MongoDB Atlas (or local MongoDB)
+- [Clerk](https://clerk.com) application
+- [LiveKit Cloud](https://livekit.io) project
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` and fill in values:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
+| `CLERK_SECRET_KEY` | Clerk secret key |
+| `MONGODB_URI` | MongoDB connection string |
+| `LIVEKIT_API_KEY` | LiveKit API key |
+| `LIVEKIT_API_SECRET` | LiveKit API secret |
+| `LIVEKIT_URL` | LiveKit server URL (`wss://...`) |
+| `NEXT_PUBLIC_APP_URL` | App URL (`http://localhost:3000`) |
+| `NEXT_PUBLIC_SOCKET_URL` | Socket server URL (`http://localhost:3001`) |
+| `SOCKET_PORT` | Socket server port (default `3001`) |
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### Clerk setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Create a Clerk app and enable Email + Google providers.
+2. Set sign-in URL: `/sign-in`, sign-up URL: `/sign-up`.
+3. Add `http://localhost:3000` to allowed origins.
 
-## Learn More
+### Admin role
 
-To learn more about Next.js, take a look at the following resources:
+Users default to `role: "user"`. Promote to admin in MongoDB:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```js
+db.users.updateOne({ email: "you@example.com" }, { $set: { role: "admin" } })
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Local Development
 
-## Deploy on Vercel
+Run **both** the Next.js app and Socket.IO server:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm install
+pnpm dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js: http://localhost:3000
+- Socket.IO: http://localhost:3001
+
+Or run separately:
+
+```bash
+pnpm dev:next    # terminal 1
+pnpm dev:socket  # terminal 2
+```
+
+## Project Structure
+
+```
+app/              # Next.js pages & API routes
+components/       # UI & feature components
+hooks/            # Client hooks (socket, livekit)
+lib/              # Utilities, auth, validators
+models/           # Mongoose schemas
+server/           # Standalone Socket.IO server
+actions/          # Server actions
+providers/        # React providers
+middleware.js     # Clerk route protection
+```
+
+## Deployment (Vercel + free tiers)
+
+Vercel **cannot** host persistent WebSocket servers. Deploy in two parts:
+
+### 1. Next.js on Vercel (free)
+
+1. Push repo to GitHub.
+2. Import project in [Vercel](https://vercel.com).
+3. Add all env vars from `.env.local`.
+4. Set `NEXT_PUBLIC_SOCKET_URL` to your socket server URL (step 2).
+
+### 2. Socket.IO on Render / Railway (free)
+
+1. Create a **Web Service** pointing to `node server/index.js`.
+2. Set env: `MONGODB_URI`, `CLERK_SECRET_KEY`, `SOCKET_PORT`, `NEXT_PUBLIC_APP_URL` (your Vercel URL).
+3. Use the Render/Railway public URL as `NEXT_PUBLIC_SOCKET_URL` in Vercel.
+
+### MongoDB & LiveKit
+
+- **MongoDB Atlas** — free M0 cluster.
+- **LiveKit Cloud** — free tier includes voice rooms.
+
+### Production checklist
+
+- [ ] `NEXT_PUBLIC_APP_URL` = production Vercel URL
+- [ ] `NEXT_PUBLIC_SOCKET_URL` = production socket server URL
+- [ ] Clerk production keys + allowed domains
+- [ ] LiveKit project URL and keys in Vercel env
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Next.js + Socket.IO concurrently |
+| `pnpm dev:next` | Next.js only |
+| `pnpm dev:socket` | Socket server only |
+| `pnpm build` | Production build |
+| `pnpm start` | Start production Next.js |
+
+## Security
+
+- Clerk middleware protects routes
+- Socket events validate JWT via Clerk
+- Input sanitization (DOMPurify)
+- In-memory rate limiting on API and socket events
+- Admin actions require `role: "admin"` in MongoDB
+
+## License
+
+MIT
