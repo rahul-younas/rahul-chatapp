@@ -3,10 +3,7 @@ import { redirect } from "next/navigation";
 import { Plus, LogIn } from "lucide-react";
 import { getAuthUser, syncClerkUser } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
-import { Room } from "@/models/Room";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { OpenRoomButton } from "@/components/dashboard/open-room-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserSync } from "@/components/user-sync";
 
@@ -30,10 +27,6 @@ export default async function DashboardPage() {
   }
 
   await connectDB();
-  const recentRooms = await Room.find({ creatorId: String(user._id) })
-    .sort({ updatedAt: -1 })
-    .limit(8)
-    .lean();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
@@ -73,30 +66,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {recentRooms.length > 0 && (
-        <div className="mt-10">
-          <h2 className="mb-4 text-lg font-semibold text-zinc-200">Your recent rooms</h2>
-          <ul className="space-y-2">
-            {recentRooms.map((room) => (
-              <li
-                key={room.roomId}
-                className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3"
-              >
-                <div>
-                  <p className="font-medium text-zinc-100">{room.roomName}</p>
-                  <p className="text-xs text-zinc-500">ID: {room.roomId}</p>
-                  {room.isClosed && (
-                    <Badge variant="secondary" className="mt-1 text-[10px]">
-                      Closed
-                    </Badge>
-                  )}
-                </div>
-                <OpenRoomButton roomId={room.roomId} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+
     </div>
   );
 }

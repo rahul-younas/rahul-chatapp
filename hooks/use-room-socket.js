@@ -38,8 +38,10 @@ export function useRoomSocket(roomId) {
       .order("created_at", { ascending: true });
     if (error) {
       console.error("Error fetching messages:", error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
       return;
     }
+    console.log("Fetched messages:", data);
     setMessages((data || []).map(mapSupabaseMessage));
   }, [normalizedRoomId]);
 

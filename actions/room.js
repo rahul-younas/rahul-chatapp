@@ -47,21 +47,27 @@ export async function createRoomAction(formData) {
 }
 
 export async function joinRoomAction(formData) {
-  await requireAuthUser();
+  const user = await requireAuthUser();
+  console.log("Joining room as user:", user);
 
   const parsed = joinRoomSchema.safeParse({
     roomId: formData.get("roomId"),
   });
+
+  console.log("Parsed room ID:", parsed);
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid room ID" };
   }
 
   await connectDB();
+  console.log("Looking for room with ID:", parsed.data.roomId);
   const room = await Room.findOne({
     roomId: parsed.data.roomId,
     isClosed: { $ne: true },
   });
+
+  console.log("Found room:", room);
 
   if (!room) return { error: "Room not found" };
   if (room.activeUsers.length >= room.maxMembers) {
