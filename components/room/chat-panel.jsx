@@ -17,40 +17,74 @@ export function ChatPanel({ messages, typingUsers, currentUserId }) {
   }, [messages]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
+    <div className="flex flex-1 flex-col overflow-hidden bg-zinc-900/30">
+      <ScrollArea className="flex-1 px-4 py-6">
+        <div className="mx-auto max-w-3xl space-y-3">
           {messages.map((msg) => {
             const isSystem = msg.userId === "system";
             const isOwn = msg.userId === currentUserId;
 
             if (isSystem) {
               return (
-                <p key={msg.id} className="text-center text-xs italic text-zinc-500">
-                  {msg.content}
-                </p>
+                <div
+                  key={msg.id}
+                  className="flex justify-center"
+                >
+                  <span className="inline-flex items-center rounded-full bg-zinc-800/80 px-4 py-1 text-xs font-medium text-zinc-300">
+                    {msg.content}
+                  </span>
+                </div>
               );
             }
 
             return (
-              <div key={msg.id} className={cn("flex gap-3", isOwn && "flex-row-reverse")}>
-                <Avatar className="h-8 w-8 shrink-0">
+              <div
+                key={msg.id}
+                className={cn(
+                  "flex items-end gap-2",
+                  isOwn ? "flex-row-reverse" : "flex-row"
+                )}
+              >
+                <Avatar
+                  className={cn(
+                    "h-8 w-8 shrink-0",
+                    isOwn && "hidden sm:flex"
+                  )}
+                >
                   <AvatarImage src={msg.imageUrl} />
                   <AvatarFallback>{msg.username[0]?.toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <div className={cn("max-w-[75%]", isOwn && "items-end")}>
-                  <div className={cn("flex items-baseline gap-2", isOwn && "flex-row-reverse")}>
-                    <span className="text-xs font-medium text-zinc-400">{msg.username}</span>
-                    <span className="text-[10px] text-zinc-600">{formatTime(msg.timestamp)}</span>
-                  </div>
-                  <p
+
+                <div
+                  className={cn(
+                    "flex flex-col max-w-[80%] sm:max-w-[60%]",
+                    isOwn && "items-end"
+                  )}
+                >
+                  {!isOwn && (
+                    <span className="mb-1 ml-1 text-xs font-medium text-zinc-400">
+                      {msg.username}
+                    </span>
+                  )}
+
+                  <div
                     className={cn(
-                      "mt-1 rounded-lg px-3 py-2 text-sm",
-                      isOwn ? "bg-indigo-600 text-white" : "bg-zinc-800 text-zinc-100"
+                      "px-4 py-2 rounded-2xl text-sm",
+                      isOwn
+                        ? "bg-emerald-600 text-white rounded-br-sm"
+                        : "bg-zinc-800 text-zinc-100 rounded-bl-sm"
                     )}
                   >
-                    {msg.content}
-                  </p>
+                    <p className="break-words">{msg.content}</p>
+                    <span
+                      className={cn(
+                        "mt-1 flex justify-end text-[10px]",
+                        isOwn ? "text-emerald-200" : "text-zinc-400"
+                      )}
+                    >
+                      {formatTime(msg.timestamp)}
+                    </span>
+                  </div>
                 </div>
               </div>
             );
@@ -59,10 +93,12 @@ export function ChatPanel({ messages, typingUsers, currentUserId }) {
         </div>
       </ScrollArea>
       {typingUsers.length > 0 && (
-        <p className="border-t border-zinc-800 px-4 py-2 text-xs text-zinc-500">
-          {typingUsers.map((u) => u.username).join(", ")}{" "}
-          {typingUsers.length === 1 ? "is" : "are"} typing...
-        </p>
+        <div className="border-t border-zinc-800 bg-zinc-950/80 px-4 py-2">
+          <p className="text-xs text-zinc-500">
+            {typingUsers.map((u) => u.username).join(", ")}{" "}
+            {typingUsers.length === 1 ? "is" : "are"} typing...
+          </p>
+        </div>
       )}
     </div>
   );

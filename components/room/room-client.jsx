@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
-import { RoomEvent } from "livekit-client";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useAuth, useUser } from "@clerk/nextjs";
+import { ConnectionState, RoomEvent } from "livekit-client";
 import { DoorClosed } from "lucide-react";
 import { toast } from "sonner";
 import { useUserSync } from "@/hooks/use-user-sync";
@@ -27,20 +27,16 @@ export function RoomClient({
   useUserSync();
   const router = useRouter();
   const { userId: clerkId } = useAuth();
+  const { user } = useUser();
   const [closing, setClosing] = useState(false);
+  const [systemMessages, setSystemMessages] = useState([]);
 
   const {
     messages,
-    participants,
-    typingUsers,
-    connected: socketConnected,
     roomClosed,
     sendMessage,
     startTyping,
     stopTyping,
-    setMicMuted,
-    muteParticipant,
-    setParticipants,
     leaveRoom,
     closeRoom,
   } = useRoomSocket(roomId);
@@ -57,25 +53,80 @@ export function RoomClient({
   const isCreator = creatorId === currentUserId;
   const canCloseRoom = isCreator || isAdmin;
 
+  const addSystemMessage = useCallback((content) => {
+    setSystemMessages((prev) => [
+      ...prev,
+      {
+        id: `sys-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        userId: "system",
+        content,
+        timestamp: Date.now(),
+      },
+    ]);
+  }, []);
+
+  const allMessages = useMemo(() => {
+    return [...systemMessages, ...messages].sort((a, b) => a.timestamp - b.timestamp);
+  }, [systemMessages, messages]);
+
+  useEffect(() => {
+    if (!lkRoom) return;
+
+    const handleParticipantConnected = (participant) => {
+      const name = participant.name || "Someone";
+      addSystemMessage(`${name} has joined the room`);
+    };
+
+    const handleParticipantDisconnected = (participant) => {
+      const name = participant.name || "Someone";
+      addSystemMessage(`${name} has left the room`);
+    };
+
+    lkRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+
+    return () => {
+      lkRoom.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      lkRoom.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+    };
+  }, [lkRoom, addSystemMessage]);
+
+  const participants = useMemo(() => {
+    if (!lkRoom) return [];
+    const lkParticipants = Array.from(lkRoom.participants.values());
+    return [
+      {
+        userId: lkRoom.localParticipant.identity,
+        clerkId: clerkId,
+        username: user?.fullName || user?.username || "You",
+        imageUrl: user?.imageUrl,
+        role: isAdmin ? "admin" : "user",
+        isMuted: lkRoom.localParticipant.isMicrophoneEnabled === false,
+        isSpeaking: false,
+      },
+      ...lkParticipants.map((p) => ({
+        userId: p.identity,
+        clerkId: p.identity,
+        username: p.name || "Participant",
+        imageUrl: "",
+        role: "user",
+        isMuted: p.isMicrophoneEnabled === false,
+        isSpeaking: false,
+      })),
+    ];
+  }, [lkRoom, clerkId, user, isAdmin]);
+
+  const speakingIds = useMemo(() => {
+    if (!lkRoom) return new Set();
+    return new Set(lkRoom.activeSpeakers.map((s) => s.identity));
+  }, [lkRoom]);
+
   useEffect(() => {
     if (roomClosed) router.push("/dashboard");
   }, [roomClosed, router]);
 
-  useEffect(() => {
-    if (!lkRoom) return;
-    const onSpeakers = (speakers) => {
-      const speakingIds = new Set(speakers.map((s) => s.identity));
-      setParticipants((prev) =>
-        prev.map((p) => ({ ...p, isSpeaking: speakingIds.has(p.userId) }))
-      );
-    };
-    lkRoom.on(RoomEvent.ActiveSpeakersChanged, onSpeakers);
-    return () => lkRoom.off(RoomEvent.ActiveSpeakersChanged, onSpeakers);
-  }, [lkRoom, setParticipants]);
-
   const handleToggleMute = async () => {
-    const muted = await toggleMute();
-    if (typeof muted === "boolean") setMicMuted(muted);
+    await toggleMute();
   };
 
   const handleLeave = () => {
@@ -100,14 +151,9 @@ export function RoomClient({
     }
   };
 
-  const myParticipant = useMemo(
-    () => participants.find((p) => p.clerkId === clerkId),
-    [participants, clerkId]
-  );
+  const activeUserId = currentUserId;
 
-  const activeUserId = myParticipant?.userId ?? currentUserId;
-
-  if (!socketConnected && participants.length === 0 && !roomClosed) {
+  if (connectionState === ConnectionState.Connecting) {
     return (
       <div className="flex h-[calc(100vh-4rem)] flex-col gap-4 p-4">
         <Skeleton className="h-12 w-full" />
@@ -152,17 +198,22 @@ export function RoomClient({
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <ParticipantSidebar
-          participants={participants}
-          currentUserId={activeUserId}
-          isCreator={isCreator}
-          isAdmin={isAdmin}
-          onMuteUser={muteParticipant}
-        />
+        <div className="hidden lg:block">
+          <ParticipantSidebar
+            participants={participants.map((p) => ({
+              ...p,
+              isSpeaking: speakingIds.has(p.userId),
+            }))}
+            currentUserId={activeUserId}
+            isCreator={isCreator}
+            isAdmin={isAdmin}
+            onMuteUser={() => {}}
+          />
+        </div>
         <main className="flex flex-1 flex-col">
           <ChatPanel
-            messages={messages}
-            typingUsers={typingUsers}
+            messages={allMessages}
+            typingUsers={[]}
             currentUserId={activeUserId}
           />
           <MessageInput
