@@ -28,6 +28,9 @@ export function useRoomSocket(roomId) {
   const channelRef = useRef(null);
 
   const normalizedRoomId = roomId?.toUpperCase();
+  const userId = user?.id;
+  const username = user?.fullName || user?.username || "User";
+  const imageUrl = user?.imageUrl;
 
   const fetchMessages = useCallback(async () => {
     if (!normalizedRoomId) return;
@@ -47,16 +50,16 @@ export function useRoomSocket(roomId) {
 
   const sendMessage = useCallback(
     async (content) => {
-      if (!user || !normalizedRoomId) return;
+      if (!userId || !normalizedRoomId) return;
       const sanitized = sanitizeInput(content);
       if (!sanitized) return;
 
       const tempId = `temp-${Date.now()}-${Math.random()}`;
       const optimisticMessage = {
         id: tempId,
-        userId: user.id,
-        username: user.fullName || user.username || "User",
-        imageUrl: user.imageUrl,
+        userId: userId,
+        username: username,
+        imageUrl: imageUrl,
         content: sanitized,
         timestamp: Date.now(),
       };
@@ -67,9 +70,9 @@ export function useRoomSocket(roomId) {
         .from("messages")
         .insert({
           room_id: normalizedRoomId,
-          user_id: user.id,
-          username: user.fullName || user.username || "User",
-          image_url: user.imageUrl,
+          user_id: userId,
+          username: username,
+          image_url: imageUrl,
           message: sanitized,
         })
         .select()
@@ -94,28 +97,28 @@ export function useRoomSocket(roomId) {
         }
       }
     },
-    [user, normalizedRoomId]
+    [userId, username, imageUrl, normalizedRoomId]
   );
 
   const startTyping = useCallback(async () => {
-    if (!channelRef.current || !user) return;
+    if (!channelRef.current || !userId) return;
     await channelRef.current.track({
-      user_id: user.id,
-      username: user.fullName || user.username || "User",
-      image_url: user.imageUrl,
+      user_id: userId,
+      username: username,
+      image_url: imageUrl,
       isTyping: true,
     });
-  }, [user]);
+  }, [userId, username, imageUrl]);
 
   const stopTyping = useCallback(async () => {
-    if (!channelRef.current || !user) return;
+    if (!channelRef.current || !userId) return;
     await channelRef.current.track({
-      user_id: user.id,
-      username: user.fullName || user.username || "User",
-      image_url: user.imageUrl,
+      user_id: userId,
+      username: username,
+      image_url: imageUrl,
       isTyping: false,
     });
-  }, [user]);
+  }, [userId, username, imageUrl]);
 
   const leaveRoom = useCallback(() => {
   }, [normalizedRoomId]);
@@ -124,12 +127,15 @@ export function useRoomSocket(roomId) {
   }, [normalizedRoomId, getToken]);
 
   useEffect(() => {
-    if (!normalizedRoomId || !user) return;
+    if (!normalizedRoomId || !userId) return;
 
     fetchMessages();
 
     const channel = supabase.channel(`room:${normalizedRoomId}`, {
-      config: { presence: { key: user.id } },
+      config: { 
+        presence: { key: userId },
+        broadcast: { self: true }
+      },
     });
 
     channel
@@ -167,7 +173,7 @@ export function useRoomSocket(roomId) {
               username: presence.username,
               imageUrl: presence.image_url,
             });
-            if (presence.isTyping && presence.user_id !== user.id) {
+            if (presence.isTyping && presence.user_id !== userId) {
               typing.push({
                 userId: presence.user_id,
                 username: presence.username,
@@ -185,7 +191,7 @@ export function useRoomSocket(roomId) {
       })
       .on("presence", { event: "join" }, ({ newPresences }) => {
         newPresences.forEach((presence) => {
-          if (presence.user_id !== user.id) {
+          if (presence.user_id !== userId) {
             setMessages((prev) => [
               ...prev,
               {
@@ -200,7 +206,7 @@ export function useRoomSocket(roomId) {
       })
       .on("presence", { event: "leave" }, ({ leftPresences }) => {
         leftPresences.forEach((presence) => {
-          if (presence.user_id !== user.id) {
+          if (presence.user_id !== userId) {
             setMessages((prev) => [
               ...prev,
               {
@@ -216,9 +222,9 @@ export function useRoomSocket(roomId) {
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
-            user_id: user.id,
-            username: user.fullName || user.username || "User",
-            image_url: user.imageUrl,
+            user_id: userId,
+            username: username,
+            image_url: imageUrl,
           });
         }
       });
@@ -230,7 +236,7 @@ export function useRoomSocket(roomId) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [normalizedRoomId, fetchMessages, user]);
+  }, [normalizedRoomId, fetchMessages, userId, username, imageUrl]);
 
   return {
     messages,
