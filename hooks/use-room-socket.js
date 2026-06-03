@@ -181,44 +181,6 @@ export function useRoomSocket(roomId) {
         setTypingUsers(uniqueTyping);
         setParticipants(uniqueParts);
       })
-      .on("presence", { event: "join" }, ({ newPresences }) => {
-        newPresences.forEach((presence) => {
-          if (presence.user_id !== userId && !presence.isTyping) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `join-${presence.user_id}-${Date.now()}-${Math.random()}`,
-                userId: "system",
-                content: `${presence.username} joined the room`,
-                timestamp: Date.now(),
-              },
-            ]);
-          }
-        });
-      })
-      .on("presence", { event: "leave" }, ({ leftPresences }) => {
-        const state = channel.presenceState();
-        leftPresences.forEach((presence) => {
-          if (presence.user_id !== userId) {
-            // Check if user is still in the room (they might have just updated typing status)
-            const isStillPresent = Object.values(state).some(presences => 
-              presences.some(p => p.user_id === presence.user_id)
-            );
-            
-            if (!isStillPresent) {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `leave-${presence.user_id}-${Date.now()}-${Math.random()}`,
-                  userId: "system",
-                  content: `${presence.username} left the room`,
-                  timestamp: Date.now(),
-                },
-              ]);
-            }
-          }
-        });
-      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
