@@ -51,33 +51,71 @@ export function useRoomSocket(roomId) {
       const sanitized = sanitizeInput(content);
       if (!sanitized) return;
 
-      const { error } = await supabase.from("messages").insert({
-        room_id: normalizedRoomId,
-        user_id: user.id,
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+      const optimisticMessage = {
+        id: tempId,
+        userId: user.id,
         username: user.fullName || user.username || "User",
-        image_url: user.imageUrl,
-        message: sanitized,
-      });
+        imageUrl: user.imageUrl,
+        content: sanitized,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, optimisticMessage]);
+
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          room_id: normalizedRoomId,
+          user_id: user.id,
+          username: user.fullName || user.username || "User",
+          image_url: user.imageUrl,
+          message: sanitized,
+        })
+        .select()
+        .single();
 
       if (error) {
         toast.error("Failed to send message");
         console.error(error);
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      } else if (data) {
+        const actualMessage = mapSupabaseMessage(data);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? actualMessage : m))
+        );
+
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "new_message",
+            payload: actualMessage,
+          });
+        }
       }
     },
     [user, normalizedRoomId]
   );
 
-  const startTyping = useCallback(() => {
-  }, []);
+  const startTyping = useCallback(async () => {
+    if (!channelRef.current || !user) return;
+    await channelRef.current.track({
+      user_id: user.id,
+      username: user.fullName || user.username || "User",
+      image_url: user.imageUrl,
+      isTyping: true,
+    });
+  }, [user]);
 
-  const stopTyping = useCallback(() => {
-  }, []);
-
-  const setMicMuted = useCallback(() => {
-  }, []);
-
-  const muteParticipant = useCallback(() => {
-  }, []);
+  const stopTyping = useCallback(async () => {
+    if (!channelRef.current || !user) return;
+    await channelRef.current.track({
+      user_id: user.id,
+      username: user.fullName || user.username || "User",
+      image_url: user.imageUrl,
+      isTyping: false,
+    });
+  }, [user]);
 
   const leaveRoom = useCallback(() => {
   }, [normalizedRoomId]);
@@ -86,12 +124,15 @@ export function useRoomSocket(roomId) {
   }, [normalizedRoomId, getToken]);
 
   useEffect(() => {
-    if (!normalizedRoomId) return;
+    if (!normalizedRoomId || !user) return;
 
     fetchMessages();
 
-    channelRef.current = supabase
-      .channel(`room:${normalizedRoomId}`)
+    const channel = supabase.channel(`room:${normalizedRoomId}`, {
+      config: { presence: { key: user.id } },
+    });
+
+    channel
       .on(
         "postgres_changes",
         {
@@ -108,14 +149,88 @@ export function useRoomSocket(roomId) {
           });
         }
       )
-      .subscribe();
+      .on("broadcast", { event: "new_message" }, ({ payload }) => {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === payload.id)) return prev;
+          return [...prev, payload];
+        });
+      })
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const typing = [];
+        const parts = [];
+
+        Object.values(state).forEach((presences) => {
+          presences.forEach((presence) => {
+            parts.push({
+              userId: presence.user_id,
+              username: presence.username,
+              imageUrl: presence.image_url,
+            });
+            if (presence.isTyping && presence.user_id !== user.id) {
+              typing.push({
+                userId: presence.user_id,
+                username: presence.username,
+              });
+            }
+          });
+        });
+
+        // remove duplicates
+        const uniqueTyping = Array.from(new Map(typing.map((item) => [item.userId, item])).values());
+        const uniqueParts = Array.from(new Map(parts.map((item) => [item.userId, item])).values());
+
+        setTypingUsers(uniqueTyping);
+        setParticipants(uniqueParts);
+      })
+      .on("presence", { event: "join" }, ({ newPresences }) => {
+        newPresences.forEach((presence) => {
+          if (presence.user_id !== user.id) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `join-${presence.user_id}-${Date.now()}-${Math.random()}`,
+                userId: "system",
+                content: `${presence.username} joined the room`,
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+        });
+      })
+      .on("presence", { event: "leave" }, ({ leftPresences }) => {
+        leftPresences.forEach((presence) => {
+          if (presence.user_id !== user.id) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `leave-${presence.user_id}-${Date.now()}-${Math.random()}`,
+                userId: "system",
+                content: `${presence.username} left the room`,
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+        });
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            user_id: user.id,
+            username: user.fullName || user.username || "User",
+            image_url: user.imageUrl,
+          });
+        }
+      });
+
+    channelRef.current = channel;
 
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [normalizedRoomId, fetchMessages]);
+  }, [normalizedRoomId, fetchMessages, user]);
 
   return {
     messages,
@@ -127,8 +242,6 @@ export function useRoomSocket(roomId) {
     sendMessage,
     startTyping,
     stopTyping,
-    setMicMuted,
-    muteParticipant,
     setParticipants,
     leaveRoom,
     closeRoom,

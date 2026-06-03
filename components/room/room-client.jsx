@@ -3,15 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { DoorClosed } from "lucide-react";
+import { DoorClosed, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useUserSync } from "@/hooks/use-user-sync";
 import { useRoomSocket } from "@/hooks/use-room-socket";
-import { useLiveKit } from "@/hooks/use-livekit";
 import { ParticipantSidebar } from "@/components/room/participant-sidebar";
 import { ChatPanel } from "@/components/room/chat-panel";
 import { MessageInput } from "@/components/room/message-input";
-import { VoiceControls } from "@/components/room/voice-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -29,6 +27,7 @@ export function RoomClient({
 
   const {
     messages,
+    typingUsers,
     roomClosed,
     sendMessage,
     startTyping,
@@ -36,14 +35,6 @@ export function RoomClient({
     leaveRoom,
     closeRoom,
   } = useRoomSocket(roomId);
-
-  const {
-    room: lkRoom,
-    connected: voiceConnected,
-    isMuted,
-    toggleMute,
-    reconnect,
-  } = useLiveKit(roomId);
 
   const isCreator = creatorId === currentUserId;
   const canCloseRoom = isCreator || isAdmin;
@@ -54,8 +45,6 @@ export function RoomClient({
       username: user?.fullName || user?.username || "You",
       imageUrl: user?.imageUrl,
       role: isAdmin ? "admin" : "user",
-      isMuted: false,
-      isSpeaking: false,
     },
   ];
 
@@ -63,26 +52,16 @@ export function RoomClient({
     if (roomClosed) router.push("/dashboard");
   }, [roomClosed, router]);
 
-  const handleToggleMute = async () => {
-    try {
-      await toggleMute();
-    } catch (e) {
-      console.error("Toggle mute error:", e);
-    }
-  };
-
   const handleLeave = () => {
     leaveRoom();
-    lkRoom?.disconnect();
     router.push("/dashboard");
   };
 
   const handleCloseRoom = async () => {
-    if (!confirm("Close this room for everyone? Chat and voice will end.")) return;
+    if (!confirm("Close this room for everyone?")) return;
     setClosing(true);
     try {
       await closeRoom();
-      lkRoom?.disconnect();
       toast.success("Room closed");
       router.push("/dashboard");
       router.refresh();
@@ -100,10 +79,33 @@ export function RoomClient({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-950/80 px-4 py-3">
         <div>
           <h1 className="text-lg font-semibold text-zinc-50">{roomName}</h1>
-          <p className="text-xs text-zinc-500">Room ID: {roomId}</p>
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-zinc-500">
+            <p>Room ID: {roomId}</p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-zinc-500 hover:text-zinc-300"
+              onClick={() => {
+                navigator.clipboard.writeText(roomId);
+                toast.success("Room ID copied to clipboard");
+              }}
+              title="Copy Room ID"
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{participants.length} online</Badge>
+          {!canCloseRoom && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleLeave}
+            >
+              Leave room
+            </Button>
+          )}
           {canCloseRoom && (
             <Button
               variant="destructive"
@@ -118,28 +120,18 @@ export function RoomClient({
         </div>
       </div>
 
-      <VoiceControls
-        isMuted={isMuted}
-        connected={voiceConnected}
-        onToggleMute={handleToggleMute}
-        onReconnect={reconnect}
-        onLeave={handleLeave}
-      />
-
       <div className="flex flex-1 overflow-hidden">
         <div className="hidden lg:block">
           <ParticipantSidebar
             participants={participants}
             currentUserId={activeUserId}
-            isCreator={isCreator}
             isAdmin={isAdmin}
-            onMuteUser={() => {}}
           />
         </div>
         <main className="flex flex-1 flex-col">
           <ChatPanel
             messages={messages}
-            typingUsers={[]}
+            typingUsers={typingUsers}
             currentUserId={activeUserId}
           />
           <MessageInput

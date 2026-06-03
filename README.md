@@ -1,13 +1,12 @@
 # VoiceHub — Realtime Voice Chat
 
-Discord-style temporary voice rooms with realtime text chat, built with Next.js (JavaScript), Clerk, MongoDB, Socket.IO, and LiveKit.
+Discord-style temporary chat rooms with realtime text chat, built with Next.js (JavaScript), Clerk, MongoDB, and Socket.IO.
 
 ## Features
 
 - Clerk authentication (Google, email/password)
-- Temporary voice rooms with auto-delete when empty
+- Temporary chat rooms with auto-delete when empty
 - Realtime text chat (in-memory only, never stored in MongoDB)
-- LiveKit voice with mute/unmute and moderator controls
 - Admin dashboard (ban users, manage roles, delete rooms)
 
 ## Tech Stack
@@ -16,7 +15,6 @@ Discord-style temporary voice rooms with realtime text chat, built with Next.js 
 - **Auth:** Clerk
 - **Database:** MongoDB + Mongoose
 - **Realtime:** Socket.IO (standalone server)
-- **Voice:** LiveKit
 
 ## Prerequisites
 
@@ -24,7 +22,6 @@ Discord-style temporary voice rooms with realtime text chat, built with Next.js 
 - pnpm
 - MongoDB Atlas (or local MongoDB)
 - [Clerk](https://clerk.com) application
-- [LiveKit Cloud](https://livekit.io) project
 
 ## Environment Variables
 
@@ -39,9 +36,6 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
 | `CLERK_SECRET_KEY` | Clerk secret key |
 | `MONGODB_URI` | MongoDB connection string |
-| `LIVEKIT_API_KEY` | LiveKit API key |
-| `LIVEKIT_API_SECRET` | LiveKit API secret |
-| `LIVEKIT_URL` | LiveKit server URL (`wss://...`) |
 | `NEXT_PUBLIC_APP_URL` | App URL (`http://localhost:3000`) |
 | `NEXT_PUBLIC_SOCKET_URL` | Socket server URL (`http://localhost:3001`) |
 | `SOCKET_PORT` | Socket server port (default `3001`) |
@@ -84,7 +78,7 @@ pnpm dev:socket  # terminal 2
 ```
 app/              # Next.js pages & API routes
 components/       # UI & feature components
-hooks/            # Client hooks (socket, livekit)
+hooks/            # Client hooks (socket)
 lib/              # Utilities, auth, validators
 models/           # Mongoose schemas
 server/           # Standalone Socket.IO server
@@ -110,17 +104,15 @@ Vercel **cannot** host persistent WebSocket servers. Deploy in two parts:
 2. Set env: `MONGODB_URI`, `CLERK_SECRET_KEY`, `SOCKET_PORT`, `NEXT_PUBLIC_APP_URL` (your Vercel URL).
 3. Use the Render/Railway public URL as `NEXT_PUBLIC_SOCKET_URL` in Vercel.
 
-### MongoDB & LiveKit
+### MongoDB
 
 - **MongoDB Atlas** — free M0 cluster.
-- **LiveKit Cloud** — free tier includes voice rooms.
 
 ### Production checklist
 
 - [ ] `NEXT_PUBLIC_APP_URL` = production Vercel URL
 - [ ] `NEXT_PUBLIC_SOCKET_URL` = production socket server URL
 - [ ] Clerk production keys + allowed domains
-- [ ] LiveKit project URL and keys in Vercel env
 
 ## Scripts
 

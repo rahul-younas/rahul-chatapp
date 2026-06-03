@@ -28,7 +28,7 @@ export function ChatPanel({ messages, typingUsers, currentUserId }) {
               return (
                 <div
                   key={msg.id}
-                  className="flex justify-center"
+                  className="flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-300"
                 >
                   <span className="inline-flex items-center rounded-full bg-zinc-800/80 px-4 py-1 text-xs font-medium text-zinc-300">
                     {msg.content}
@@ -41,8 +41,8 @@ export function ChatPanel({ messages, typingUsers, currentUserId }) {
               <div
                 key={msg.id}
                 className={cn(
-                  "flex items-end gap-2",
-                  isOwn ? "flex-row-reverse" : "flex-row"
+                  "flex w-full items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300",
+                  isOwn ? "justify-end flex-row-reverse" : "justify-start flex-row"
                 )}
               >
                 <Avatar
@@ -92,11 +92,11 @@ export function ChatPanel({ messages, typingUsers, currentUserId }) {
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
-      {typingUsers.length > 0 && (
+      {typingUsers && typingUsers.filter(u => u.userId !== currentUserId).length > 0 && (
         <div className="border-t border-zinc-800 bg-zinc-950/80 px-4 py-2">
           <p className="text-xs text-zinc-500">
-            {typingUsers.map((u) => u.username).join(", ")}{" "}
-            {typingUsers.length === 1 ? "is" : "are"} typing...
+            {typingUsers.filter(u => u.userId !== currentUserId).map((u) => u.username).join(", ")}{" "}
+            {typingUsers.filter(u => u.userId !== currentUserId).length === 1 ? "is" : "are"} typing...
           </p>
         </div>
       )}
