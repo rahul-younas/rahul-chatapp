@@ -66,35 +66,27 @@ export function useRoomSocket(roomId) {
 
       setMessages((prev) => [...prev, optimisticMessage]);
 
-      const { data, error } = await supabase
-        .from("messages")
-        .insert({
-          room_id: normalizedRoomId,
-          user_id: userId,
-          username: username,
-          image_url: imageUrl,
-          message: sanitized,
-        })
-        .select()
-        .single();
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "new_message",
+          payload: optimisticMessage,
+        }).catch(err => console.error("Broadcast error:", err));
+      }
 
-      if (error) {
-        toast.error("Failed to send message");
-        console.error(error);
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      } else if (data) {
-        const actualMessage = mapSupabaseMessage(data);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? actualMessage : m))
-        );
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: "broadcast",
-            event: "new_message",
-            payload: actualMessage,
+      // Optional: Try to persist to database, but don't block or remove if it fails
+      try {
+        await supabase
+          .from("messages")
+          .insert({
+            room_id: normalizedRoomId,
+            user_id: userId,
+            username: username,
+            image_url: imageUrl,
+            message: sanitized,
           });
-        }
+      } catch (e) {
+        console.error("Failed to persist message to DB:", e);
       }
     },
     [userId, username, imageUrl, normalizedRoomId]
@@ -191,7 +183,7 @@ export function useRoomSocket(roomId) {
       })
       .on("presence", { event: "join" }, ({ newPresences }) => {
         newPresences.forEach((presence) => {
-          if (presence.user_id !== userId) {
+          if (presence.user_id !== userId && !presence.isTyping) {
             setMessages((prev) => [
               ...prev,
               {
@@ -205,17 +197,25 @@ export function useRoomSocket(roomId) {
         });
       })
       .on("presence", { event: "leave" }, ({ leftPresences }) => {
+        const state = channel.presenceState();
         leftPresences.forEach((presence) => {
           if (presence.user_id !== userId) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `leave-${presence.user_id}-${Date.now()}-${Math.random()}`,
-                userId: "system",
-                content: `${presence.username} left the room`,
-                timestamp: Date.now(),
-              },
-            ]);
+            // Check if user is still in the room (they might have just updated typing status)
+            const isStillPresent = Object.values(state).some(presences => 
+              presences.some(p => p.user_id === presence.user_id)
+            );
+            
+            if (!isStillPresent) {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `leave-${presence.user_id}-${Date.now()}-${Math.random()}`,
+                  userId: "system",
+                  content: `${presence.username} left the room`,
+                  timestamp: Date.now(),
+                },
+              ]);
+            }
           }
         });
       })
