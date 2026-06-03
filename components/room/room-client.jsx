@@ -27,7 +27,6 @@ export function RoomClient({
 
   const {
     messages,
-    typingUsers,
     roomClosed,
     sendMessage,
     startTyping,
@@ -131,7 +130,7 @@ export function RoomClient({
         <main className="flex flex-1 flex-col">
           <ChatPanel
             messages={messages}
-            typingUsers={typingUsers}
+            typingUsers={[]}
             currentUserId={activeUserId}
           />
           <MessageInput

@@ -92,11 +92,11 @@ export function ChatPanel({ messages, typingUsers, currentUserId }) {
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
-      {typingUsers && typingUsers.filter(u => u.userId !== currentUserId).length > 0 && (
+      {typingUsers.length > 0 && (
         <div className="border-t border-zinc-800 bg-zinc-950/80 px-4 py-2">
           <p className="text-xs text-zinc-500">
-            {typingUsers.filter(u => u.userId !== currentUserId).map((u) => u.username).join(", ")}{" "}
-            {typingUsers.filter(u => u.userId !== currentUserId).length === 1 ? "is" : "are"} typing...
+            {typingUsers.map((u) => u.username).join(", ")}{" "}
+            {typingUsers.length === 1 ? "is" : "are"} typing...
           </p>
         </div>
       )}

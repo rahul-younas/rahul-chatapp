@@ -28,9 +28,6 @@ export function useRoomSocket(roomId) {
   const channelRef = useRef(null);
 
   const normalizedRoomId = roomId?.toUpperCase();
-  const userId = user?.id;
-  const username = user?.fullName || user?.username || "User";
-  const imageUrl = user?.imageUrl;
 
   const fetchMessages = useCallback(async () => {
     if (!normalizedRoomId) return;
@@ -50,67 +47,31 @@ export function useRoomSocket(roomId) {
 
   const sendMessage = useCallback(
     async (content) => {
-      if (!userId || !normalizedRoomId) return;
+      if (!user || !normalizedRoomId) return;
       const sanitized = sanitizeInput(content);
       if (!sanitized) return;
 
-      const tempId = `temp-${Date.now()}-${Math.random()}`;
-      const optimisticMessage = {
-        id: tempId,
-        userId: userId,
-        username: username,
-        imageUrl: imageUrl,
-        content: sanitized,
-        timestamp: Date.now(),
-      };
+      const { error } = await supabase.from("messages").insert({
+        room_id: normalizedRoomId,
+        user_id: user.id,
+        username: user.fullName || user.username || "User",
+        image_url: user.imageUrl,
+        message: sanitized,
+      });
 
-      setMessages((prev) => [...prev, optimisticMessage]);
-
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: "broadcast",
-          event: "new_message",
-          payload: optimisticMessage,
-        }).catch(err => console.error("Broadcast error:", err));
-      }
-
-      // Optional: Try to persist to database, but don't block or remove if it fails
-      try {
-        await supabase
-          .from("messages")
-          .insert({
-            room_id: normalizedRoomId,
-            user_id: userId,
-            username: username,
-            image_url: imageUrl,
-            message: sanitized,
-          });
-      } catch (e) {
-        console.error("Failed to persist message to DB:", e);
+      if (error) {
+        toast.error("Failed to send message");
+        console.error(error);
       }
     },
-    [userId, username, imageUrl, normalizedRoomId]
+    [user, normalizedRoomId]
   );
 
-  const startTyping = useCallback(async () => {
-    if (!channelRef.current || !userId) return;
-    await channelRef.current.track({
-      user_id: userId,
-      username: username,
-      image_url: imageUrl,
-      isTyping: true,
-    });
-  }, [userId, username, imageUrl]);
+  const startTyping = useCallback(() => {
+  }, []);
 
-  const stopTyping = useCallback(async () => {
-    if (!channelRef.current || !userId) return;
-    await channelRef.current.track({
-      user_id: userId,
-      username: username,
-      image_url: imageUrl,
-      isTyping: false,
-    });
-  }, [userId, username, imageUrl]);
+  const stopTyping = useCallback(() => {
+  }, []);
 
   const leaveRoom = useCallback(() => {
   }, [normalizedRoomId]);
@@ -119,15 +80,12 @@ export function useRoomSocket(roomId) {
   }, [normalizedRoomId, getToken]);
 
   useEffect(() => {
-    if (!normalizedRoomId || !userId) return;
+    if (!normalizedRoomId || !user) return;
 
     fetchMessages();
 
     const channel = supabase.channel(`room:${normalizedRoomId}`, {
-      config: { 
-        presence: { key: userId },
-        broadcast: { self: true }
-      },
+      config: { presence: { key: user.id } },
     });
 
     channel
@@ -147,46 +105,42 @@ export function useRoomSocket(roomId) {
           });
         }
       )
-      .on("broadcast", { event: "new_message" }, ({ payload }) => {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === payload.id)) return prev;
-          return [...prev, payload];
+      .on("presence", { event: "join" }, ({ newPresences }) => {
+        newPresences.forEach((presence) => {
+          if (presence.user_id !== user.id) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `join-${presence.user_id}-${Date.now()}-${Math.random()}`,
+                userId: "system",
+                content: `${presence.username} joined the room`,
+                timestamp: Date.now(),
+              },
+            ]);
+          }
         });
       })
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const typing = [];
-        const parts = [];
-
-        Object.values(state).forEach((presences) => {
-          presences.forEach((presence) => {
-            parts.push({
-              userId: presence.user_id,
-              username: presence.username,
-              imageUrl: presence.image_url,
-            });
-            if (presence.isTyping && presence.user_id !== userId) {
-              typing.push({
-                userId: presence.user_id,
-                username: presence.username,
-              });
-            }
-          });
+      .on("presence", { event: "leave" }, ({ leftPresences }) => {
+        leftPresences.forEach((presence) => {
+          if (presence.user_id !== user.id) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `leave-${presence.user_id}-${Date.now()}-${Math.random()}`,
+                userId: "system",
+                content: `${presence.username} left the room`,
+                timestamp: Date.now(),
+              },
+            ]);
+          }
         });
-
-        // remove duplicates
-        const uniqueTyping = Array.from(new Map(typing.map((item) => [item.userId, item])).values());
-        const uniqueParts = Array.from(new Map(parts.map((item) => [item.userId, item])).values());
-
-        setTypingUsers(uniqueTyping);
-        setParticipants(uniqueParts);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({
-            user_id: userId,
-            username: username,
-            image_url: imageUrl,
+            user_id: user.id,
+            username: user.fullName || user.username || "User",
+            image_url: user.imageUrl,
           });
         }
       });
@@ -198,7 +152,7 @@ export function useRoomSocket(roomId) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [normalizedRoomId, fetchMessages, userId, username, imageUrl]);
+  }, [normalizedRoomId, fetchMessages, user]);
 
   return {
     messages,
